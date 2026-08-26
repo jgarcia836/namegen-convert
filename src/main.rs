@@ -2,6 +2,7 @@ mod json;
 mod model;
 mod ngj;
 mod ngt;
+mod sample;
 
 use model::{finalize, Issue, Severity};
 use std::env;
@@ -16,7 +17,12 @@ enum Format {
 
 fn main() {
     let args: Vec<String> = env::args().skip(1).collect();
-    if let Err(message) = run(args) {
+    let result = if args.first().map(String::as_str) == Some("sample") {
+        run_sample(args[1..].to_vec())
+    } else {
+        run(args)
+    };
+    if let Err(message) = result {
         eprintln!("error: {}", message);
         process::exit(1);
     }
@@ -94,6 +100,64 @@ fn run(args: Vec<String>) -> Result<(), String> {
     Ok(())
 }
 
+fn run_sample(args: Vec<String>) -> Result<(), String> {
+    let mut lenient = false;
+    let mut from: Option<Format> = None;
+    let mut count: u32 = 1;
+    let mut positional = Vec::new();
+
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--lenient" => lenient = true,
+            "--from" => {
+                i += 1;
+                let value = args.get(i).ok_or("--from requires a value (ngt or ngj)")?;
+                from = Some(parse_format(value)?);
+            }
+            "--count" => {
+                i += 1;
+                let value = args.get(i).ok_or("--count requires a number")?;
+                count = value.parse::<u32>().map_err(|_| format!("'{}' is not a valid count", value))?;
+                if count == 0 {
+                    return Err("--count must be at least 1".to_string());
+                }
+            }
+            other => positional.push(other.to_string()),
+        }
+        i += 1;
+    }
+
+    if positional.len() != 1 {
+        return Err("expected exactly one input path".to_string());
+    }
+    let input_path = &positional[0];
+
+    let from = match from {
+        Some(f) => f,
+        None => format_from_extension(input_path)
+            .ok_or_else(|| format!("cannot infer input format from '{}'; pass --from", input_path))?,
+    };
+
+    let source = fs::read_to_string(input_path).map_err(|e| format!("failed to read '{}': {}", input_path, e))?;
+    let (mut doc, mut issues) = match from {
+        Format::Ngt => ngt::parse(&source),
+        Format::Ngj => ngj::parse(&source),
+    }
+    .map_err(|fatal| fatal.message)?;
+
+    finalize(&mut doc, &mut issues);
+    report_issues(&issues, lenient)?;
+
+    let mut rng = sample::Rng::from_entropy();
+    for _ in 0..count {
+        let name = sample::sample(&doc, &mut rng)?;
+        println!("{}", name);
+    }
+
+    Ok(())
+}
+
 fn report_issues(issues: &[Issue], lenient: bool) -> Result<(), String> {
     if issues.is_empty() {
         return Ok(());
@@ -143,9 +207,13 @@ fn print_help() {
     println!();
     println!("usage:");
     println!("  namegen-convert [--lenient] [--from ngt|ngj] [--to ngt|ngj] <input> <output>");
+    println!("  namegen-convert sample [--lenient] [--from ngt|ngj] [--count N] <input>");
     println!();
     println!("by default the conversion is strict: an undefined start category, a");
     println!("placeholder referencing an unknown category, or a duplicate category");
     println!("definition all stop the conversion. pass --lenient to downgrade those");
     println!("to warnings and convert anyway.");
+    println!();
+    println!("'sample' parses a grammar and prints N generated names (default 1) by");
+    println!("expanding its start category, without writing a converted file.");
 }

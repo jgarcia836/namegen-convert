@@ -41,15 +41,15 @@ reference another category with `{other_category}`. `start` says which
 category is the entry point for name generation; if it's left out, a category
 literally called `name` is used instead.
 
-This tool only converts between the two representations - it does not itself
-expand `{placeholders}` into generated names. That's a separate problem
-(sampling, weighting, avoiding infinite recursion on cyclic grammars) and
-belongs in a generator, not a format converter.
+The primary job of this tool is converting between the two representations,
+but it can also expand a grammar's `start` category into generated names
+itself, for trying out a draft without wiring it into a separate generator.
 
 ## Usage
 
 ```
 namegen-convert [--lenient] [--from ngt|ngj] [--to ngt|ngj] <input> <output>
+namegen-convert sample [--lenient] [--from ngt|ngj] [--count N] <input>
 ```
 
 Format is normally inferred from the file extension (`.ngt`/`.txt` and
@@ -81,6 +81,23 @@ as a warning on stderr, so `--lenient` doesn't mean silent.
 namegen-convert --lenient rough-draft.ngt rough-draft.ngj
 ```
 
+## Sampling
+
+`sample` parses a grammar, resolves its `start` category the same way a
+conversion would (strict by default, `--lenient` to downgrade the same
+issues to warnings), and prints one generated name per line by picking a
+random weighted entry from `start` and recursively expanding any
+`{placeholder}` references it contains:
+
+```
+namegen-convert sample grammar.ngt
+namegen-convert sample --count 5 grammar.ngj
+```
+
+Sampling is bounded to a fixed recursion depth, so a grammar with a
+reference cycle (`a = {b}` / `b = {a}`) fails with an error instead of
+hanging. There is no `--seed` flag yet, so runs are not reproducible.
+
 ## Building
 
 Standard library only, no external crates:
@@ -91,6 +108,7 @@ cargo build --release
 
 ## Status
 
-Early skeleton: the two formats convert both ways and strict/lenient
-validation works. No name sampling yet, no test suite yet - see the roadmap
-in the issue tracker.
+Early skeleton: the two formats convert both ways, strict/lenient validation
+works, and `sample` can expand a parsed grammar into names. No test suite
+outside of `sample`'s own unit tests yet - see the roadmap in the issue
+tracker.
