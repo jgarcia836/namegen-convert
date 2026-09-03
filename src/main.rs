@@ -3,6 +3,8 @@ mod model;
 mod ngj;
 mod ngt;
 mod sample;
+#[cfg(test)]
+mod tests;
 
 use model::{finalize, Issue, Severity};
 use std::env;

@@ -109,6 +109,7 @@ cargo build --release
 ## Status
 
 Early skeleton: the two formats convert both ways, strict/lenient validation
-works, and `sample` can expand a parsed grammar into names. No test suite
-outside of `sample`'s own unit tests yet - see the roadmap in the issue
-tracker.
+works, and `sample` can expand a parsed grammar into names. `sample` has its
+own unit tests, and round-trip tests check that `.ngt` and `.ngj` fixtures
+for the same grammar parse to the same document and survive being converted
+to the other format and back - see the roadmap in the issue tracker.

@@ -2,13 +2,13 @@
 // each holding weighted text entries that may reference other categories with
 // a `{name}` placeholder.
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Entry {
     pub text: String,
     pub weight: u32,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Document {
     pub start: Option<String>,
     pub categories: Vec<(String, Vec<Entry>)>,
