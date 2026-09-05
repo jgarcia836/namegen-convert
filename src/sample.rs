@@ -1,7 +1,8 @@
 // Recursive name sampling: expands the `start` category (or any named
 // category) into generated text by substituting `{placeholder}` references
 // with a random pick from the referenced category, weighted by each entry's
-// weight.
+// weight. `\{` and `\}` in an entry are unescaped into a literal brace
+// instead of being read as a placeholder.
 //
 // Grammars can be cyclic (a typo, or a deliberate mutual reference), so
 // expansion is bounded by depth instead of trusting the input to terminate
@@ -86,26 +87,47 @@ fn expand(doc: &Document, category: &str, rng: &mut Rng, depth: u32) -> Result<S
         })
         .expect("total_weight covers every entry's weight range");
 
+    render(doc, &entry.text, rng, depth)
+}
+
+// Substitutes unescaped `{name}` placeholders with a recursive sample of
+// `name`, and unescapes `\{` / `\}` into a literal brace. Kept in sync with
+// model::placeholders, which finds the same placeholders without expanding
+// them.
+fn render(doc: &Document, text: &str, rng: &mut Rng, depth: u32) -> Result<String, String> {
     let mut result = String::new();
-    let mut rest = entry.text.as_str();
-    while let Some(open) = rest.find('{') {
-        result.push_str(&rest[..open]);
-        let Some(len) = rest[open + 1..].find('}') else {
-            result.push_str(&rest[open..]);
-            rest = "";
+    let mut rest = text;
+    loop {
+        let Some(idx) = rest.find(|c| c == '{' || c == '\\') else {
+            result.push_str(rest);
             break;
         };
-        let name = &rest[open + 1..open + 1 + len];
+        result.push_str(&rest[..idx]);
+        let tail = &rest[idx..];
+        if tail.starts_with("\\{") || tail.starts_with("\\}") {
+            result.push_str(&tail[1..2]);
+            rest = &tail[2..];
+            continue;
+        }
+        if tail.starts_with('\\') {
+            result.push('\\');
+            rest = &tail[1..];
+            continue;
+        }
+        let Some(rel_end) = tail[1..].find('}') else {
+            result.push_str(tail);
+            break;
+        };
+        let end = 1 + rel_end;
+        let name = &tail[1..end];
         let is_ref = !name.is_empty() && name.chars().all(|c| c.is_alphanumeric() || c == '_');
-        let span_end = open + 1 + len + 1;
         if is_ref && doc.has_category(name) {
             result.push_str(&expand(doc, name, rng, depth + 1)?);
         } else {
-            result.push_str(&rest[open..span_end]);
+            result.push_str(&tail[..=end]);
         }
-        rest = &rest[span_end..];
+        rest = &tail[end + 1..];
     }
-    result.push_str(rest);
 
     Ok(result)
 }
@@ -165,6 +187,20 @@ mod tests {
         let doc = doc("name = hello {ghost}\n");
         let mut rng = Rng::from_seed(1);
         assert_eq!(sample(&doc, &mut rng).unwrap(), "hello {ghost}");
+    }
+
+    #[test]
+    fn escaped_braces_are_kept_literal() {
+        let doc = doc("name = \\{5\\}\n");
+        let mut rng = Rng::from_seed(1);
+        assert_eq!(sample(&doc, &mut rng).unwrap(), "{5}");
+    }
+
+    #[test]
+    fn escaped_brace_next_to_a_real_placeholder_only_escapes_itself() {
+        let doc = doc("first = Anna\nname = \\{first\\} {first}\n");
+        let mut rng = Rng::from_seed(1);
+        assert_eq!(sample(&doc, &mut rng).unwrap(), "{first} Anna");
     }
 
     #[test]

@@ -63,22 +63,34 @@ impl Document {
     }
 }
 
-// Finds every `{identifier}` placeholder in a piece of entry text.
+// Finds every `{identifier}` placeholder in a piece of entry text. `\{` and
+// `\}` escape a literal brace, so an escaped pair is skipped instead of read
+// as a placeholder boundary (see sample::render, which does the matching
+// substitution and unescaping).
 pub fn placeholders(text: &str) -> Vec<&str> {
     let mut result = Vec::new();
-    let mut i = 0;
-    while i < text.len() {
-        if text.as_bytes()[i] == b'{' {
-            if let Some(end) = text[i + 1..].find('}') {
-                let name = &text[i + 1..i + 1 + end];
+    let mut rest = text;
+    while let Some(idx) = rest.find(|c| c == '{' || c == '\\') {
+        let tail = &rest[idx..];
+        if tail.starts_with("\\{") || tail.starts_with("\\}") {
+            rest = &tail[2..];
+            continue;
+        }
+        if tail.starts_with('\\') {
+            rest = &tail[1..];
+            continue;
+        }
+        match tail[1..].find('}') {
+            Some(rel_end) => {
+                let end = 1 + rel_end;
+                let name = &tail[1..end];
                 if !name.is_empty() && name.chars().all(|c| c.is_alphanumeric() || c == '_') {
                     result.push(name);
                 }
-                i += end + 2;
-                continue;
+                rest = &tail[end + 1..];
             }
+            None => break,
         }
-        i += 1;
     }
     result
 }
@@ -120,5 +132,25 @@ pub fn finalize(doc: &mut Document, issues: &mut Vec<Issue>) {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn finds_plain_placeholders() {
+        assert_eq!(placeholders("{first} {last}"), vec!["first", "last"]);
+    }
+
+    #[test]
+    fn escaped_braces_are_not_placeholders() {
+        assert_eq!(placeholders("\\{first\\}"), Vec::<&str>::new());
+    }
+
+    #[test]
+    fn escaped_and_real_placeholders_can_be_adjacent() {
+        assert_eq!(placeholders("\\{first\\} {first}"), vec!["first"]);
     }
 }

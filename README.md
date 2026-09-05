@@ -41,6 +41,12 @@ reference another category with `{other_category}`. `start` says which
 category is the entry point for name generation; if it's left out, a category
 literally called `name` is used instead.
 
+To get a literal brace in an entry instead of a placeholder reference, escape
+it as `\{` or `\}`; this works the same way in both formats, since it's a
+property of the entry text itself, not just `.ngt` syntax. In `.ngt`, a `#`
+starts a comment that runs to the end of the line - on its own line or after
+some entries - and `\#` escapes a literal `#`.
+
 The primary job of this tool is converting between the two representations,
 but it can also expand a grammar's `start` category into generated names
 itself, for trying out a draft without wiring it into a separate generator.
