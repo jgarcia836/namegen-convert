@@ -56,3 +56,57 @@ fn fallback_start_category_survives_a_round_trip() {
     assert_eq!(original, parsed_ngj(&ngj::write(&original)));
     assert_eq!(original, parsed_ngt(&ngt::write(&original)));
 }
+
+// --check writes nothing; it only needs a scratch input file, never an
+// output path. These tests give each call its own file name (built from the
+// test name) so they can't collide when the test binary runs them in
+// parallel threads.
+fn scratch_path(label: &str) -> std::path::PathBuf {
+    std::env::temp_dir().join(format!("namegen-convert-test-{}-{}.ngt", std::process::id(), label))
+}
+
+fn write_scratch(label: &str, contents: &str) -> std::path::PathBuf {
+    let path = scratch_path(label);
+    std::fs::write(&path, contents).expect("write scratch fixture");
+    path
+}
+
+#[test]
+fn check_accepts_a_valid_grammar_and_writes_nothing() {
+    let path = write_scratch("check-valid", NGT_BASIC);
+    let result = crate::run(vec!["--check".to_string(), path.to_string_lossy().into_owned()]);
+    assert!(result.is_ok());
+    std::fs::remove_file(&path).ok();
+}
+
+#[test]
+fn check_rejects_an_undefined_placeholder_without_lenient() {
+    let path = write_scratch("check-invalid", "name = {missing}\n");
+    let result = crate::run(vec!["--check".to_string(), path.to_string_lossy().into_owned()]);
+    assert!(result.is_err());
+    std::fs::remove_file(&path).ok();
+}
+
+#[test]
+fn check_with_lenient_accepts_an_undefined_placeholder() {
+    let path = write_scratch("check-lenient", "name = {missing}\n");
+    let result = crate::run(vec![
+        "--check".to_string(),
+        "--lenient".to_string(),
+        path.to_string_lossy().into_owned(),
+    ]);
+    assert!(result.is_ok());
+    std::fs::remove_file(&path).ok();
+}
+
+#[test]
+fn check_rejects_a_second_positional_argument() {
+    let path = write_scratch("check-extra-arg", NGT_BASIC);
+    let result = crate::run(vec![
+        "--check".to_string(),
+        path.to_string_lossy().into_owned(),
+        "extra.ngj".to_string(),
+    ]);
+    assert!(result.is_err());
+    std::fs::remove_file(&path).ok();
+}

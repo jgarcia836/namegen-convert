@@ -55,6 +55,7 @@ itself, for trying out a draft without wiring it into a separate generator.
 
 ```
 namegen-convert [--lenient] [--from ngt|ngj] [--to ngt|ngj] <input> <output>
+namegen-convert --check [--lenient] [--from ngt|ngj] <input>
 namegen-convert sample [--lenient] [--from ngt|ngj] [--count N] <input>
 ```
 
@@ -87,6 +88,14 @@ as a warning on stderr, so `--lenient` doesn't mean silent.
 namegen-convert --lenient rough-draft.ngt rough-draft.ngj
 ```
 
+Pass `--check` to run the same parse-and-validate pass without writing
+anything, for example as a pre-commit or CI step on a grammar file:
+
+```
+namegen-convert --check grammar.ngt
+namegen-convert --check --lenient rough-draft.ngt
+```
+
 ## Sampling
 
 `sample` parses a grammar, resolves its `start` category the same way a
@@ -115,7 +124,8 @@ cargo build --release
 ## Status
 
 Early skeleton: the two formats convert both ways, strict/lenient validation
-works, and `sample` can expand a parsed grammar into names. `sample` has its
-own unit tests, and round-trip tests check that `.ngt` and `.ngj` fixtures
-for the same grammar parse to the same document and survive being converted
-to the other format and back - see the roadmap in the issue tracker.
+works, `--check` validates a file without writing output, and `sample` can
+expand a parsed grammar into names. `sample` has its own unit tests, and
+round-trip tests check that `.ngt` and `.ngj` fixtures for the same grammar
+parse to the same document and survive being converted to the other format
+and back - see the roadmap in the issue tracker.

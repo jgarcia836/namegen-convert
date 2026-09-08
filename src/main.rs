@@ -32,6 +32,7 @@ fn main() {
 
 fn run(args: Vec<String>) -> Result<(), String> {
     let mut lenient = false;
+    let mut check = false;
     let mut from: Option<Format> = None;
     let mut to: Option<Format> = None;
     let mut positional = Vec::new();
@@ -40,6 +41,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
     while i < args.len() {
         match args[i].as_str() {
             "--lenient" => lenient = true,
+            "--check" => check = true,
             "--help" | "-h" => {
                 print_help();
                 return Ok(());
@@ -57,6 +59,36 @@ fn run(args: Vec<String>) -> Result<(), String> {
             other => positional.push(other.to_string()),
         }
         i += 1;
+    }
+
+    if check {
+        if positional.len() != 1 {
+            print_help();
+            return Err("--check expects exactly one input path".to_string());
+        }
+        if to.is_some() {
+            return Err("--to has no effect with --check".to_string());
+        }
+
+        let input_path = &positional[0];
+        let from = match from {
+            Some(f) => f,
+            None => format_from_extension(input_path)
+                .ok_or_else(|| format!("cannot infer input format from '{}'; pass --from", input_path))?,
+        };
+
+        let source = fs::read_to_string(input_path).map_err(|e| format!("failed to read '{}': {}", input_path, e))?;
+
+        let (mut doc, mut issues) = match from {
+            Format::Ngt => ngt::parse(&source),
+            Format::Ngj => ngj::parse(&source),
+        }
+        .map_err(|fatal| fatal.message)?;
+
+        finalize(&mut doc, &mut issues);
+        report_issues(&issues, lenient)?;
+
+        return Ok(());
     }
 
     if positional.len() != 2 {
@@ -209,12 +241,17 @@ fn print_help() {
     println!();
     println!("usage:");
     println!("  namegen-convert [--lenient] [--from ngt|ngj] [--to ngt|ngj] <input> <output>");
+    println!("  namegen-convert --check [--lenient] [--from ngt|ngj] <input>");
     println!("  namegen-convert sample [--lenient] [--from ngt|ngj] [--count N] <input>");
     println!();
     println!("by default the conversion is strict: an undefined start category, a");
     println!("placeholder referencing an unknown category, or a duplicate category");
     println!("definition all stop the conversion. pass --lenient to downgrade those");
     println!("to warnings and convert anyway.");
+    println!();
+    println!("'--check' parses and validates a single input file the same way a");
+    println!("conversion would, but never writes output; it exits nonzero if the");
+    println!("grammar has any issue that a normal conversion would reject.");
     println!();
     println!("'sample' parses a grammar and prints N generated names (default 1) by");
     println!("expanding its start category, without writing a converted file.");
