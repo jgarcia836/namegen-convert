@@ -138,6 +138,7 @@ fn run_sample(args: Vec<String>) -> Result<(), String> {
     let mut lenient = false;
     let mut from: Option<Format> = None;
     let mut count: u32 = 1;
+    let mut seed: Option<u64> = None;
     let mut positional = Vec::new();
 
     let mut i = 0;
@@ -156,6 +157,11 @@ fn run_sample(args: Vec<String>) -> Result<(), String> {
                 if count == 0 {
                     return Err("--count must be at least 1".to_string());
                 }
+            }
+            "--seed" => {
+                i += 1;
+                let value = args.get(i).ok_or("--seed requires a number")?;
+                seed = Some(value.parse::<u64>().map_err(|_| format!("'{}' is not a valid seed", value))?);
             }
             other => positional.push(other.to_string()),
         }
@@ -183,7 +189,10 @@ fn run_sample(args: Vec<String>) -> Result<(), String> {
     finalize(&mut doc, &mut issues);
     report_issues(&issues, lenient)?;
 
-    let mut rng = sample::Rng::from_entropy();
+    let mut rng = match seed {
+        Some(s) => sample::Rng::from_seed(s),
+        None => sample::Rng::from_entropy(),
+    };
     for _ in 0..count {
         let name = sample::sample(&doc, &mut rng)?;
         println!("{}", name);
@@ -242,7 +251,7 @@ fn print_help() {
     println!("usage:");
     println!("  namegen-convert [--lenient] [--from ngt|ngj] [--to ngt|ngj] <input> <output>");
     println!("  namegen-convert --check [--lenient] [--from ngt|ngj] <input>");
-    println!("  namegen-convert sample [--lenient] [--from ngt|ngj] [--count N] <input>");
+    println!("  namegen-convert sample [--lenient] [--from ngt|ngj] [--count N] [--seed N] <input>");
     println!();
     println!("by default the conversion is strict: an undefined start category, a");
     println!("placeholder referencing an unknown category, or a duplicate category");
@@ -254,5 +263,6 @@ fn print_help() {
     println!("grammar has any issue that a normal conversion would reject.");
     println!();
     println!("'sample' parses a grammar and prints N generated names (default 1) by");
-    println!("expanding its start category, without writing a converted file.");
+    println!("expanding its start category, without writing a converted file. pass");
+    println!("--seed to make the run reproducible; without it, each run is random.");
 }

@@ -110,3 +110,23 @@ fn check_rejects_a_second_positional_argument() {
     assert!(result.is_err());
     std::fs::remove_file(&path).ok();
 }
+
+#[test]
+fn sample_accepts_a_numeric_seed() {
+    let path = write_scratch("sample-seed-valid", NGT_BASIC);
+    let result = crate::run_sample(vec!["--seed".to_string(), "42".to_string(), path.to_string_lossy().into_owned()]);
+    assert!(result.is_ok());
+    std::fs::remove_file(&path).ok();
+}
+
+#[test]
+fn sample_rejects_a_non_numeric_seed() {
+    let path = write_scratch("sample-seed-invalid", NGT_BASIC);
+    let result = crate::run_sample(vec![
+        "--seed".to_string(),
+        "not-a-number".to_string(),
+        path.to_string_lossy().into_owned(),
+    ]);
+    assert!(result.is_err());
+    std::fs::remove_file(&path).ok();
+}

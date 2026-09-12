@@ -56,7 +56,7 @@ itself, for trying out a draft without wiring it into a separate generator.
 ```
 namegen-convert [--lenient] [--from ngt|ngj] [--to ngt|ngj] <input> <output>
 namegen-convert --check [--lenient] [--from ngt|ngj] <input>
-namegen-convert sample [--lenient] [--from ngt|ngj] [--count N] <input>
+namegen-convert sample [--lenient] [--from ngt|ngj] [--count N] [--seed N] <input>
 ```
 
 Format is normally inferred from the file extension (`.ngt`/`.txt` and
@@ -111,7 +111,9 @@ namegen-convert sample --count 5 grammar.ngj
 
 Sampling is bounded to a fixed recursion depth, so a grammar with a
 reference cycle (`a = {b}` / `b = {a}`) fails with an error instead of
-hanging. There is no `--seed` flag yet, so runs are not reproducible.
+hanging. Pass `--seed` with a number to make a run reproducible; the same
+seed and grammar always produce the same sequence of names. Without it,
+each run picks its own seed and is not reproducible.
 
 ## Building
 
