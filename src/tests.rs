@@ -71,6 +71,12 @@ fn write_scratch(label: &str, contents: &str) -> std::path::PathBuf {
     path
 }
 
+// Same idea as scratch_path, but for an output path a conversion is expected
+// to create rather than an input fixture that's written up front.
+fn scratch_output_path(label: &str, extension: &str) -> std::path::PathBuf {
+    std::env::temp_dir().join(format!("namegen-convert-test-{}-{}.{}", std::process::id(), label, extension))
+}
+
 #[test]
 fn check_accepts_a_valid_grammar_and_writes_nothing() {
     let path = write_scratch("check-valid", NGT_BASIC);
@@ -129,4 +135,92 @@ fn sample_rejects_a_non_numeric_seed() {
     ]);
     assert!(result.is_err());
     std::fs::remove_file(&path).ok();
+}
+
+// These exercise the actual conversion path (two positional args, real
+// output file), which the tests above never touch: they cover --check and
+// sample, but nothing that writes a converted file.
+
+#[test]
+fn convert_infers_formats_from_extension_and_writes_a_parseable_output() {
+    let input = write_scratch("convert-infer", NGT_BASIC);
+    let output = scratch_output_path("convert-infer", "ngj");
+
+    let result = crate::run(vec![input.to_string_lossy().into_owned(), output.to_string_lossy().into_owned()]);
+    assert!(result.is_ok());
+
+    let written = std::fs::read_to_string(&output).expect("output file was written");
+    assert_eq!(parsed_ngj(&written), parsed_ngt(NGT_BASIC));
+
+    std::fs::remove_file(&input).ok();
+    std::fs::remove_file(&output).ok();
+}
+
+#[test]
+fn convert_respects_from_and_to_overrides_for_unrecognized_extensions() {
+    let input = scratch_path("convert-override");
+    let input = input.with_extension("dat");
+    std::fs::write(&input, NGJ_BASIC).expect("write scratch fixture");
+    let output = scratch_output_path("convert-override", "out");
+
+    let result = crate::run(vec![
+        "--from".to_string(),
+        "ngj".to_string(),
+        "--to".to_string(),
+        "ngt".to_string(),
+        input.to_string_lossy().into_owned(),
+        output.to_string_lossy().into_owned(),
+    ]);
+    assert!(result.is_ok());
+
+    let written = std::fs::read_to_string(&output).expect("output file was written");
+    assert_eq!(parsed_ngt(&written), parsed_ngj(NGJ_BASIC));
+
+    std::fs::remove_file(&input).ok();
+    std::fs::remove_file(&output).ok();
+}
+
+#[test]
+fn convert_rejects_an_undefined_placeholder_and_writes_nothing() {
+    let input = write_scratch("convert-invalid", "name = {missing}\n");
+    let output = scratch_output_path("convert-invalid", "ngj");
+    std::fs::remove_file(&output).ok();
+
+    let result = crate::run(vec![input.to_string_lossy().into_owned(), output.to_string_lossy().into_owned()]);
+    assert!(result.is_err());
+    assert!(!output.exists(), "conversion should not write output when validation fails");
+
+    std::fs::remove_file(&input).ok();
+}
+
+#[test]
+fn convert_with_lenient_merges_duplicate_categories_in_the_output() {
+    let input = write_scratch("convert-lenient", "first = Anna\nfirst = Beth\nname = {first}\n");
+    let output = scratch_output_path("convert-lenient", "ngj");
+
+    let result = crate::run(vec![
+        "--lenient".to_string(),
+        input.to_string_lossy().into_owned(),
+        output.to_string_lossy().into_owned(),
+    ]);
+    assert!(result.is_ok());
+
+    let written = std::fs::read_to_string(&output).expect("output file was written");
+    let doc = parsed_ngj(&written);
+    let first = doc.categories.iter().find(|(name, _)| name == "first").map(|(_, e)| e).unwrap();
+    assert_eq!(first.len(), 2);
+
+    std::fs::remove_file(&input).ok();
+    std::fs::remove_file(&output).ok();
+}
+
+#[test]
+fn convert_errors_on_a_missing_input_file() {
+    let input = scratch_path("convert-missing");
+    std::fs::remove_file(&input).ok();
+    let output = scratch_output_path("convert-missing", "ngj");
+
+    let result = crate::run(vec![input.to_string_lossy().into_owned(), output.to_string_lossy().into_owned()]);
+    assert!(result.is_err());
+    assert!(!output.exists());
 }
