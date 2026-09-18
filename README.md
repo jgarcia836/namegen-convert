@@ -56,7 +56,8 @@ itself, for trying out a draft without wiring it into a separate generator.
 ```
 namegen-convert [--lenient] [--from ngt|ngj] [--to ngt|ngj] <input> <output>
 namegen-convert --check [--lenient] [--from ngt|ngj] <input>
-namegen-convert sample [--lenient] [--from ngt|ngj] [--count N] [--seed N] <input>
+namegen-convert sample [--lenient] [--from ngt|ngj] [--count N] [--seed N]
+                        [--format lines|json] <input>
 ```
 
 Format is normally inferred from the file extension (`.ngt`/`.txt` and
@@ -114,6 +115,18 @@ reference cycle (`a = {b}` / `b = {a}`) fails with an error instead of
 hanging. Pass `--seed` with a number to make a run reproducible; the same
 seed and grammar always produce the same sequence of names. Without it,
 each run picks its own seed and is not reproducible.
+
+By default names print one per line. Pass `--format json` to get a JSON
+array of strings instead, for piping into something that expects JSON:
+
+```
+namegen-convert sample --count 3 --format json grammar.ngt
+[
+  "Anna Smith",
+  "Beth Jones",
+  "Clara Smith"
+]
+```
 
 ## Building
 

@@ -134,11 +134,18 @@ fn run(args: Vec<String>) -> Result<(), String> {
     Ok(())
 }
 
+#[derive(Clone, Copy, PartialEq)]
+enum SampleFormat {
+    Lines,
+    Json,
+}
+
 fn run_sample(args: Vec<String>) -> Result<(), String> {
     let mut lenient = false;
     let mut from: Option<Format> = None;
     let mut count: u32 = 1;
     let mut seed: Option<u64> = None;
+    let mut format = SampleFormat::Lines;
     let mut positional = Vec::new();
 
     let mut i = 0;
@@ -162,6 +169,15 @@ fn run_sample(args: Vec<String>) -> Result<(), String> {
                 i += 1;
                 let value = args.get(i).ok_or("--seed requires a number")?;
                 seed = Some(value.parse::<u64>().map_err(|_| format!("'{}' is not a valid seed", value))?);
+            }
+            "--format" => {
+                i += 1;
+                let value = args.get(i).ok_or("--format requires a value (lines or json)")?;
+                format = match value.as_str() {
+                    "lines" => SampleFormat::Lines,
+                    "json" => SampleFormat::Json,
+                    other => return Err(format!("unknown format '{}'; expected 'lines' or 'json'", other)),
+                };
             }
             other => positional.push(other.to_string()),
         }
@@ -193,9 +209,21 @@ fn run_sample(args: Vec<String>) -> Result<(), String> {
         Some(s) => sample::Rng::from_seed(s),
         None => sample::Rng::from_entropy(),
     };
+    let mut names = Vec::with_capacity(count as usize);
     for _ in 0..count {
-        let name = sample::sample(&doc, &mut rng)?;
-        println!("{}", name);
+        names.push(sample::sample(&doc, &mut rng)?);
+    }
+
+    match format {
+        SampleFormat::Lines => {
+            for name in names {
+                println!("{}", name);
+            }
+        }
+        SampleFormat::Json => {
+            let value = json::Value::Array(names.into_iter().map(json::Value::String).collect());
+            println!("{}", json::write(&value));
+        }
     }
 
     Ok(())
@@ -251,7 +279,8 @@ fn print_help() {
     println!("usage:");
     println!("  namegen-convert [--lenient] [--from ngt|ngj] [--to ngt|ngj] <input> <output>");
     println!("  namegen-convert --check [--lenient] [--from ngt|ngj] <input>");
-    println!("  namegen-convert sample [--lenient] [--from ngt|ngj] [--count N] [--seed N] <input>");
+    println!("  namegen-convert sample [--lenient] [--from ngt|ngj] [--count N] [--seed N]");
+    println!("                         [--format lines|json] <input>");
     println!();
     println!("by default the conversion is strict: an undefined start category, a");
     println!("placeholder referencing an unknown category, or a duplicate category");
@@ -265,4 +294,6 @@ fn print_help() {
     println!("'sample' parses a grammar and prints N generated names (default 1) by");
     println!("expanding its start category, without writing a converted file. pass");
     println!("--seed to make the run reproducible; without it, each run is random.");
+    println!("by default names print one per line; pass --format json to print a");
+    println!("JSON array of strings instead.");
 }

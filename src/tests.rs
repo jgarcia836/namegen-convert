@@ -126,6 +126,32 @@ fn sample_accepts_a_numeric_seed() {
 }
 
 #[test]
+fn sample_rejects_an_unknown_format() {
+    let path = write_scratch("sample-format-invalid", NGT_BASIC);
+    let result = crate::run_sample(vec![
+        "--format".to_string(),
+        "yaml".to_string(),
+        path.to_string_lossy().into_owned(),
+    ]);
+    assert!(result.is_err());
+    std::fs::remove_file(&path).ok();
+}
+
+#[test]
+fn sample_accepts_json_format() {
+    let path = write_scratch("sample-format-json", NGT_BASIC);
+    let result = crate::run_sample(vec![
+        "--format".to_string(),
+        "json".to_string(),
+        "--count".to_string(),
+        "3".to_string(),
+        path.to_string_lossy().into_owned(),
+    ]);
+    assert!(result.is_ok());
+    std::fs::remove_file(&path).ok();
+}
+
+#[test]
 fn sample_rejects_a_non_numeric_seed() {
     let path = write_scratch("sample-seed-invalid", NGT_BASIC);
     let result = crate::run_sample(vec![
